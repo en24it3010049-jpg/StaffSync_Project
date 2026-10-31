@@ -1,0 +1,21 @@
+import { useEffect, useState } from 'react';
+import { Plus, CalendarDays } from 'lucide-react';
+import api from '../api';
+import { useAuth } from '../context/AuthContext';
+
+export default function Leaves() {
+  const { user } = useAuth();
+  const [items,setItems] = useState([]);
+  const [error,setError] = useState('');
+  const [show,setShow] = useState(false);
+  const [form,setForm] = useState({leaveType:'Casual',startDate:'',endDate:'',reason:''});
+  async function load(){try{setItems((await api.get('/leaves')).data);}catch(e){setError(e.response?.data?.message||'Could not load requests');}}
+  useEffect(()=>{load();},[]);
+  async function submit(e){e.preventDefault();setError('');try{await api.post('/leaves',form);setShow(false);setForm({leaveType:'Casual',startDate:'',endDate:'',reason:''});load();}catch(e){setError(e.response?.data?.message||'Could not submit request');}}
+  async function review(id,status){try{await api.patch(`/leaves/${id}/status`,{status});load();}catch(e){setError(e.response?.data?.message||'Could not update status');}}
+  return <><div className="page-heading"><div><div className="eyebrow">TIME OFF</div><h1>Leave requests</h1><p>Submit time off and keep track of approvals.</p></div>{<button className="primary" onClick={()=>setShow(true)}><Plus size={17}/> Request leave</button>}</div>{error&&<div className="error-box">{error}</div>}
+    <div className="summary-strip"><div className="summary-item"><span className="summary-dot pending-dot"></span><div><b>{items.filter(x=>x.status==='Pending').length}</b><small>Pending</small></div></div><div className="summary-item"><span className="summary-dot approved-dot"></span><div><b>{items.filter(x=>x.status==='Approved').length}</b><small>Approved</small></div></div><div className="summary-item"><span className="summary-dot rejected-dot"></span><div><b>{items.filter(x=>x.status==='Rejected').length}</b><small>Rejected</small></div></div></div>
+    <section className="panel"><div className="panel-head"><div><h3>All requests</h3><p>{user?.role==='Employee'?'Your submitted requests':'Requests from your team'}</p></div><CalendarDays size={20} className="panel-icon"/></div><div className="table-wrap"><table><thead><tr>{user?.role!=='Employee'&&<th>Employee</th>}<th>Type</th><th>From</th><th>To</th><th>Reason</th><th>Status</th>{user?.role!=='Employee'&&<th>Review</th>}</tr></thead><tbody>{items.map(l=><tr key={l._id}>{user?.role!=='Employee'&&<td>{l.employee?.name}</td>}<td>{l.leaveType}</td><td>{new Date(l.startDate).toLocaleDateString()}</td><td>{new Date(l.endDate).toLocaleDateString()}</td><td className="reason-cell">{l.reason}</td><td><span className={`badge ${l.status.toLowerCase()}`}>{l.status}</span></td>{user?.role!=='Employee'&&<td>{l.status==='Pending'?<div className="button-row"><button className="mini-approve" onClick={()=>review(l._id,'Approved')}>Approve</button><button className="mini-reject" onClick={()=>review(l._id,'Rejected')}>Reject</button></div>:'—'}</td>}</tr>)}</tbody></table>{!items.length&&<div className="empty-state">No leave requests yet. Use “Request leave” to get started.</div>}</div></section>
+    {show&&<div className="modal-backdrop"><form className="modal" onSubmit={submit}><div className="modal-head"><div><h2>Request leave</h2><p>Fill in your time-off details.</p></div><button type="button" className="icon-button" onClick={()=>setShow(false)}>×</button></div><div className="form-grid"><label>Leave type<select value={form.leaveType} onChange={e=>setForm({...form,leaveType:e.target.value})}><option>Casual</option><option>Sick</option><option>Earned</option><option>Other</option></select></label><label>Start date<input required type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})}/></label><label>End date<input required type="date" min={form.startDate} value={form.endDate} onChange={e=>setForm({...form,endDate:e.target.value})}/></label><label className="span-2">Reason<textarea required rows="3" value={form.reason} onChange={e=>setForm({...form,reason:e.target.value})}/></label></div><div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShow(false)}>Cancel</button><button className="primary">Submit request</button></div></form></div>}
+  </>;
+}
